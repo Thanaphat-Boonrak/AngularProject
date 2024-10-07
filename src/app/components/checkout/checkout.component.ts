@@ -11,6 +11,12 @@ import { CartService } from '../../services/cart.service';
 import { ShopFormService } from '../../services/shop-form.service';
 import { Country } from '../../common/country';
 import { State } from '../../common/state';
+import { CheckoutService } from '../../services/checkout.service';
+import { Router } from '@angular/router';
+import { Order } from '../../common/order';
+import { OrderItem } from '../../common/order-item';
+import { Purchase } from '../../common/purchase';
+import { response } from 'express';
 
 @Component({
   selector: 'app-checkout',
@@ -18,7 +24,6 @@ import { State } from '../../common/state';
   styleUrls: ['./checkout.component.css'],
 })
 export class CheckoutComponent implements OnInit {
-
   checkoutFormGroup!: FormGroup;
 
   totalPrice: number = 0;
@@ -31,10 +36,15 @@ export class CheckoutComponent implements OnInit {
 
   constructor(
     private formBuilder: FormBuilder,
-    private shop: ShopFormService
+    private shop: ShopFormService,
+    private cart: CartService,
+    private checkOut: CheckoutService,
+    private router: Router
   ) {}
 
   ngOnInit() {
+    this.reviewCart();
+
     this.checkoutFormGroup = this.formBuilder.group({
       customer: this.formBuilder.group({
         firstName: new FormControl('', [
@@ -99,7 +109,7 @@ export class CheckoutComponent implements OnInit {
         ]),
         cardNumber: new FormControl('', [
           Validators.required,
-          Validators.pattern('([0-9]{4}-){3}[0-9]{4}')
+          Validators.pattern('([0-9]{4}-){3}[0-9]{4}'),
         ]),
         securityCode: new FormControl('', [
           Validators.required,
@@ -187,7 +197,6 @@ export class CheckoutComponent implements OnInit {
     return this.checkoutFormGroup.get('creditCard.securityCode');
   }
 
-
   copyShippingAddressToBillingAddress(event: Event) {
     const evenchecked = (event.target as HTMLInputElement).value;
     if (evenchecked) {
@@ -204,7 +213,64 @@ export class CheckoutComponent implements OnInit {
   onSubmit() {
     if (this.checkoutFormGroup.invalid) {
       this.checkoutFormGroup.markAllAsTouched();
+
     }
+    else{
+    let order = new Order(this.totalPrice, this.totalQuantity);
+
+    const cartItems = this.cart.CartItems;
+
+    let orderItemsShort: OrderItem[] = cartItems.map(
+      (temp) => new OrderItem(temp)
+    );
+
+    let purchase = new Purchase();
+
+    purchase.customer = this.checkoutFormGroup.controls['customer'].value;
+
+    purchase.shippingAddress =
+      this.checkoutFormGroup.controls['shippingAddress'].value;
+    const shippingState: State = JSON.parse(
+      JSON.stringify(purchase.shippingAddress?.state)
+    );
+    const shippingCountry: State = JSON.parse(
+      JSON.stringify(purchase.shippingAddress?.country)
+    );
+    purchase.shippingAddress!.state = shippingState.name;
+    purchase.shippingAddress!.country = shippingCountry.name;
+
+    purchase.billingAddress =
+      this.checkoutFormGroup.controls['billingAddress'].value;
+    const billingState: State = JSON.parse(
+      JSON.stringify(purchase.billingAddress?.state)
+    );
+    const billingCountry: State = JSON.parse(
+      JSON.stringify(purchase.billingAddress?.country)
+    );
+    purchase.billingAddress!.state = billingState.name;
+    purchase.billingAddress!.country = billingCountry.name;
+
+    purchase.order = order;
+    purchase.orderItems = orderItemsShort;
+    this.restCart();
+    this.checkOut.placeOrder(purchase).subscribe({
+      next: response =>{
+        alert(`Your Order Success, This your Trackking id${response.orderTrackingNumber}`)
+      },
+      error: error=>{
+        alert(`error: ${error.message}`)
+      }
+    });
+  }
+  }
+  restCart() {
+    this.cart.CartItems = [];
+    this.cart.totalPrice.next(0);
+    this.cart.totalQuantity.next(0);
+
+    this.checkoutFormGroup.reset;
+
+    this.router.navigateByUrl("/products");
   }
 
   handleMonthAndYears() {
@@ -247,4 +313,9 @@ export class CheckoutComponent implements OnInit {
     event.target.value = input;
   }
 
+  reviewCart() {
+    this.cart.totalPrice.subscribe((data) => (this.totalPrice = data));
+
+    this.cart.totalQuantity.subscribe((data) => (this.totalQuantity = data));
+  }
 }

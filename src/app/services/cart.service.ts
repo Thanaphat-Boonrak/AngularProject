@@ -1,6 +1,6 @@
 import { Inject, Injectable, PLATFORM_ID } from '@angular/core';
 import { Cart } from '../common/cart';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { isPlatformBrowser } from '@angular/common';
 
 @Injectable({
@@ -8,13 +8,13 @@ import { isPlatformBrowser } from '@angular/common';
 })
 export class CartService {
   CartItems: Cart[] = [];
-  totalPrice: Subject<number> = new Subject<number>();
-  totalQuantity: Subject<number> = new Subject<number>();
+  totalPrice: BehaviorSubject<number> = new BehaviorSubject<number>(0);
+  totalQuantity: BehaviorSubject<number> = new BehaviorSubject<number>(0);
   storage: Storage | undefined;
 
   constructor(@Inject(PLATFORM_ID) private platformId: Object) {
     if (isPlatformBrowser(this.platformId)) {
-      this.storage = sessionStorage;
+      this.storage = localStorage;
       let data = JSON.parse(this.storage.getItem('CartItems')!);
       if (data != null) {
         this.CartItems = data;
